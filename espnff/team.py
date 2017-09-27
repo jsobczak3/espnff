@@ -15,6 +15,7 @@ class Team(object):
         self.schedule = []
         self.scores = []
         self.mov = []
+        self.roster = []
         self._fetch_schedule(data)
 
     def __repr__(self):

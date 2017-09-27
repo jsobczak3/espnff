@@ -2,6 +2,7 @@ import requests
 
 from .utils import (two_step_dominance,
                     power_points, )
+from .player import Player
 from .team import Team
 from .settings import Settings
 from .matchup import Matchup
@@ -51,6 +52,7 @@ class League(object):
             raise UnknownLeagueException('Unknown %s Error' % self.status)
 
         self._fetch_teams(data)
+        self._fetch_rosters()
         self._fetch_settings(data)
 
     def _fetch_teams(self, data):
@@ -75,6 +77,41 @@ class League(object):
 
         # sort by team ID
         self.teams = sorted(self.teams, key=lambda x: x.team_id, reverse=False)
+
+    def _fetch_rosters(self):
+        team_ids = str([team.team_id for team in self.teams]).replace("[", "").replace("]", "").replace(" ", "")
+
+        params = {
+            'leagueId': self.league_id,
+            'seasonId': self.year,
+            'teamIds': team_ids
+        }
+
+        r = requests.get('%srosterInfo' % (self.ENDPOINT,), params=params)
+        self.roster_status = r.status_code
+        data = r.json()
+
+        if self.roster_status != 200:
+            raise UnknownLeagueException('Unknown %s Error' % self.roster_status)
+
+
+        #map team_id to list index. if self.teams is converted to dictionary, this would not be needed
+        team_id_map = dict([(team.team_id, pos) for pos, team in enumerate(self.teams, 0)])
+
+        fetched_teams = data['leagueRosters']['teams']
+
+        for fetched_team in fetched_teams:
+            #pull current team from teams list using the map created above
+            current_team = self.teams[team_id_map[fetched_team['teamId']]]
+
+            for player in fetched_team['slots']:
+                try:
+                    self.first_name = player['player']
+                except KeyError:
+                    #empty slot on roster, skip
+                    continue
+                new_player = Player(player)
+                current_team.roster.append(new_player)
 
     def _fetch_settings(self, data):
         self.settings = Settings(data)
